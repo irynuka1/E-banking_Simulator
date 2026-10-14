@@ -92,6 +92,4 @@ Running `Main` from an IDE works too.
 
 ## Code Style
 
-Known gaps (savings withdrawals, some split-payment messages, one business cashback case) are listed in [`src/README.md`](src/README.md).
-
 Checkstyle rules are in `src/main/resources/poo_checks.xml`; run `src/main/resources/checkstyle.sh` to verify.

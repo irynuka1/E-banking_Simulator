@@ -9,6 +9,7 @@ import org.poo.e_banking.helpers.Commission;
 import org.poo.e_banking.helpers.ExchangeRateManager;
 import org.poo.e_banking.helpers.Executable;
 import org.poo.entities.Account;
+import org.poo.entities.Commerciant;
 import org.poo.entities.User;
 import org.poo.fileio.CommandInput;
 import org.poo.fileio.CommerciantInput;
@@ -53,7 +54,8 @@ public final class SendMoney implements Executable {
             }
         }
 
-        if (sender != null && receiverAccount == null && isCommerciantAccount()) {
+        if (sender != null && receiverAccount == null
+                && findCommerciant() != null) {
             payCommerciant(senderAccount, sender, exchangeManager);
             return;
         }
@@ -61,13 +63,13 @@ public final class SendMoney implements Executable {
         processTransaction(senderAccount, receiverAccount, sender, receiver, exchangeManager);
     }
 
-    private boolean isCommerciantAccount() {
+    private CommerciantInput findCommerciant() {
         for (CommerciantInput commerciant : AppLogic.getInstance().getCommerciants()) {
             if (commerciant.getAccount().equals(commandInput.getReceiver())) {
-                return true;
+                return commerciant;
             }
         }
-        return false;
+        return null;
     }
 
     private void payCommerciant(final Account senderAccount, final User sender,
@@ -86,6 +88,8 @@ public final class SendMoney implements Executable {
                 + commandInput.getAmount() * commission)) {
             BusinessRules.recordSpending(senderAccount, commandInput.getEmail(),
                     commandInput.getAmount(), commandInput.getTimestamp(), null);
+            applyCashback(senderAccount, BusinessRules.planHolder(senderAccount, sender),
+                    amountInRON);
 
             ObjectNode node = new ObjectNode(new ObjectMapper().getNodeFactory());
             node.put("timestamp", commandInput.getTimestamp());
@@ -97,6 +101,21 @@ public final class SendMoney implements Executable {
             logTransaction(sender, senderAccount, node);
         } else {
             logTransaction(sender, senderAccount, failedOutput());
+        }
+    }
+
+    private void applyCashback(final Account account, final User planUser,
+                               final double amountInRON) {
+        Commerciant commerciant = account.getCommerciant(findCommerciant().getCommerciant());
+        if (commerciant == null) {
+            return;
+        }
+
+        if (commerciant.getCashbackStrategy().equals("nrOfTransactions")) {
+            commerciant.getCashBack(account, commandInput.getAmount());
+        } else {
+            commerciant.getCashBack(amountInRON, account, planUser.getPlan(),
+                    commandInput.getAmount());
         }
     }
 

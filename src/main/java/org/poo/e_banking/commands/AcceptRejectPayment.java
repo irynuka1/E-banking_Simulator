@@ -1,5 +1,6 @@
 package org.poo.e_banking.commands;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.poo.e_banking.AppLogic;
@@ -24,8 +25,18 @@ public final class AcceptRejectPayment implements Executable {
         for (ObjectNode jsonNodes : errorArray) {
             if (jsonNodes.get("timestamp").asInt() == commandInput.getTimestamp()) {
                 output.add(jsonNodes);
-                break;
+                return;
             }
+        }
+
+        if (!AppLogic.getInstance().getUserMap().containsKey(commandInput.getEmail())) {
+            ObjectNode wrapper = new ObjectMapper().createObjectNode();
+            wrapper.put("command", commandInput.getCommand());
+            ObjectNode error = wrapper.putObject("output");
+            error.put("description", "User not found");
+            error.put("timestamp", commandInput.getTimestamp());
+            wrapper.put("timestamp", commandInput.getTimestamp());
+            output.add(wrapper);
         }
     }
 }

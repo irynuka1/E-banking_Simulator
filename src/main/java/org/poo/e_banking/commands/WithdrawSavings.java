@@ -3,7 +3,6 @@ package org.poo.e_banking.commands;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.poo.e_banking.AppLogic;
-import org.poo.e_banking.helpers.Commission;
 import org.poo.e_banking.helpers.ExchangeRateManager;
 import org.poo.e_banking.helpers.Executable;
 import org.poo.entities.Account;
@@ -56,61 +55,74 @@ public final class WithdrawSavings implements Executable {
         double exchangeRate = exchangeManager.getExchangeRate(account.getCurrency(),
                 commandInput.getCurrency());
         double amountToWithdraw = commandInput.getAmount() * exchangeRate;
-        double exchangeToRON = exchangeManager.getExchangeRate(commandInput.getCurrency(), "RON");
-        double amountRON = commandInput.getAmount() * exchangeToRON;
-        double commission = Commission.getCommission(user, amountRON);
 
-        if (account.getBalance() < amountToWithdraw + amountToWithdraw * commission) {
-            insufficientFundsOutput(user);
-            return;
-        }
-
-        for (Account accountToDeposit : user.getAccounts()) {
-            if (accountToDeposit.getType().equals("classic")
-                    && accountToDeposit.getCurrency().equals(commandInput.getCurrency())) {
-                accountToDeposit.addFunds(commandInput.getAmount());
-                account.setBalance(account.getBalance()
-                        - (amountToWithdraw + amountToWithdraw * commission));
-
-                successOutput(user);
-                return;
+        Account classic = null;
+        for (Account candidate : user.getAccounts()) {
+            if (candidate.getType().equals("classic")
+                    && candidate.getCurrency().equals(commandInput.getCurrency())) {
+                classic = candidate;
+                break;
             }
         }
 
-        noClassicAccountOutput(user);
+        if (classic == null) {
+            noClassicAccountOutput(user, account);
+            return;
+        }
+
+        if (account.getBalance() < amountToWithdraw) {
+            insufficientFundsOutput(user, account);
+            return;
+        }
+
+        classic.addFunds(commandInput.getAmount());
+        account.setBalance(account.getBalance() - amountToWithdraw);
+        successOutput(user, account, classic);
     }
 
     /**
-     * Creates a success transaction output
+     * Logs the successful withdrawal, once for the savings and once for the classic account
      * @param user the user that made the withdrawal
+     * @param savings the savings account
+     * @param classic the classic account that received the money
      */
-    public void successOutput(final User user) {
-        ObjectNode output = new ObjectNode(new ObjectMapper().getNodeFactory());
-        output.put("description", "Savings withdrawal");
-        output.put("timestamp", commandInput.getTimestamp());
-        user.getTransactionsNode().add(output);
+    public void successOutput(final User user, final Account savings, final Account classic) {
+        for (Account target : new Account[] {savings, classic}) {
+            ObjectNode output = new ObjectNode(new ObjectMapper().getNodeFactory());
+            output.put("timestamp", commandInput.getTimestamp());
+            output.put("description", "Savings withdrawal");
+            output.put("savingsAccountIBAN", savings.getIban());
+            output.put("classicAccountIBAN", classic.getIban());
+            output.put("amount", commandInput.getAmount());
+            user.getTransactionsNode().add(output);
+            target.getTransactionsNode().add(output);
+        }
     }
 
     /**
      * Creates a transaction output for the case when the user does not have a classic account
      * @param user the user that made the withdrawal
+     * @param account the savings account
      */
-    public void noClassicAccountOutput(final User user) {
+    public void noClassicAccountOutput(final User user, final Account account) {
         ObjectNode output = new ObjectNode(new ObjectMapper().getNodeFactory());
-        output.put("description", "You do not have a classic account.");
         output.put("timestamp", commandInput.getTimestamp());
+        output.put("description", "You do not have a classic account.");
         user.getTransactionsNode().add(output);
+        account.getTransactionsNode().add(output);
     }
 
     /**
      * Creates a transaction output for the case when the user does not have enough funds
      * @param user the user that made the withdrawal
+     * @param account the savings account
      */
-    public void insufficientFundsOutput(final User user) {
+    public void insufficientFundsOutput(final User user, final Account account) {
         ObjectNode output = new ObjectNode(new ObjectMapper().getNodeFactory());
         output.put("description", "Insufficient funds");
         output.put("timestamp", commandInput.getTimestamp());
         user.getTransactionsNode().add(output);
+        account.getTransactionsNode().add(output);
     }
 
     /**

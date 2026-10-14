@@ -50,6 +50,14 @@ public final class UpgradePlan implements Executable {
             return;
         }
 
+        if (user.getPlan().equals(commandInput.getNewPlanType())) {
+            ObjectNode node = new ObjectNode(new ObjectMapper().getNodeFactory());
+            node.put("timestamp", commandInput.getTimestamp());
+            node.put("description", "The user already has the " + user.getPlan() + " plan.");
+            logTransaction(user, account, node);
+            return;
+        }
+
         String key = user.getPlan() + " -> " + commandInput.getNewPlanType();
         if (planTaxMap.containsKey(key)) {
             double exchangeRate = exchangeManager.getExchangeRate("RON",

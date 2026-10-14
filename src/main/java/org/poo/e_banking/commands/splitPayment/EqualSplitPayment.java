@@ -57,6 +57,7 @@ public final class EqualSplitPayment implements SplitPaymentStrategy {
         splitPaymentWrapper.put("description", "Split payment of "
                 + String.format("%.2f", commandInput.getAmount()) + " "
                 + commandInput.getCurrency());
+        splitPaymentWrapper.put("splitPaymentType", commandInput.getSplitPaymentType());
         splitPaymentWrapper.put("currency", commandInput.getCurrency());
         splitPaymentWrapper.put("amount", amounts.getFirst());
         addInvolvedAccounts(splitPaymentWrapper, commandInput);
