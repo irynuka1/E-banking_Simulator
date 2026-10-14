@@ -4,12 +4,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.poo.e_banking.AppLogic;
+import org.poo.e_banking.helpers.BusinessRules;
 import org.poo.e_banking.helpers.Commission;
 import org.poo.e_banking.helpers.ExchangeRateManager;
 import org.poo.e_banking.helpers.Executable;
 import org.poo.entities.Account;
 import org.poo.entities.User;
 import org.poo.fileio.CommandInput;
+import org.poo.fileio.CommerciantInput;
 
 import java.util.ArrayList;
 
@@ -34,24 +36,76 @@ public final class SendMoney implements Executable {
         User receiver = null;
 
         for (User user : users) {
-            if (user.getAccountByIban(commandInput.getAccount()) != null) {
-                senderAccount = user.getAccountByIban(commandInput.getAccount());
-                sender = user;
-            } else if (user.getAccountByAlias(commandInput.getAlias()) != null) {
-                senderAccount = user.getAccountByAlias(commandInput.getAlias());
-                sender = user;
+            if (senderAccount == null) {
+                Account found = findAccount(user, commandInput.getAccount());
+                if (found != null) {
+                    senderAccount = found;
+                    sender = user;
+                }
             }
 
-            if (user.getAccountByIban(commandInput.getReceiver()) != null) {
-                receiverAccount = user.getAccountByIban(commandInput.getReceiver());
-                receiver = user;
-            } else if (user.getAccountByAlias(commandInput.getAlias()) != null) {
-                receiverAccount = user.getAccountByAlias(commandInput.getAlias());
-                receiver = user;
+            if (receiverAccount == null) {
+                Account found = findAccount(user, commandInput.getReceiver());
+                if (found != null) {
+                    receiverAccount = found;
+                    receiver = user;
+                }
             }
         }
 
+        if (sender != null && receiverAccount == null && isCommerciantAccount()) {
+            payCommerciant(senderAccount, sender, exchangeManager);
+            return;
+        }
+
         processTransaction(senderAccount, receiverAccount, sender, receiver, exchangeManager);
+    }
+
+    private boolean isCommerciantAccount() {
+        for (CommerciantInput commerciant : AppLogic.getInstance().getCommerciants()) {
+            if (commerciant.getAccount().equals(commandInput.getReceiver())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void payCommerciant(final Account senderAccount, final User sender,
+                                final ExchangeRateManager exchangeManager) {
+        if (!BusinessRules.canSpend(senderAccount, commandInput.getEmail(),
+                commandInput.getAmount())) {
+            return;
+        }
+
+        double amountInRON = commandInput.getAmount()
+                * exchangeManager.getExchangeRate(senderAccount.getCurrency(), "RON");
+        double commission = Commission.getCommission(
+                BusinessRules.planHolder(senderAccount, sender), amountInRON);
+
+        if (senderAccount.withdrawFunds(commandInput.getAmount()
+                + commandInput.getAmount() * commission)) {
+            BusinessRules.recordSpending(senderAccount, commandInput.getEmail(),
+                    commandInput.getAmount(), commandInput.getTimestamp(), null);
+
+            ObjectNode node = new ObjectNode(new ObjectMapper().getNodeFactory());
+            node.put("timestamp", commandInput.getTimestamp());
+            node.put("description", commandInput.getDescription());
+            node.put("senderIBAN", senderAccount.getIban());
+            node.put("receiverIBAN", commandInput.getReceiver());
+            node.put("amount", commandInput.getAmount() + " " + senderAccount.getCurrency());
+            node.put("transferType", "sent");
+            logTransaction(sender, senderAccount, node);
+        } else {
+            logTransaction(sender, senderAccount, failedOutput());
+        }
+    }
+
+    private Account findAccount(final User user, final String ibanOrAlias) {
+        if (ibanOrAlias == null || ibanOrAlias.isEmpty()) {
+            return null;
+        }
+        Account account = user.getAccountByIban(ibanOrAlias);
+        return account != null ? account : user.getAccountByAlias(ibanOrAlias);
     }
 
     /**
@@ -81,7 +135,14 @@ public final class SendMoney implements Executable {
 
         double exchangeToRON = exchangeManager.getExchangeRate(senderAccount.getCurrency(), "RON");
         double amountInRON = commandInput.getAmount() * exchangeToRON;
-        double commission = Commission.getCommission(sender, amountInRON);
+
+        if (!BusinessRules.canSpend(senderAccount, commandInput.getEmail(),
+                commandInput.getAmount())) {
+            return;
+        }
+
+        double commission = Commission.getCommission(
+                BusinessRules.planHolder(senderAccount, sender), amountInRON);
 
         if (senderAccount.withdrawFunds(commandInput.getAmount()
                 + commandInput.getAmount() * commission)) {
@@ -89,6 +150,9 @@ public final class SendMoney implements Executable {
                     receiverAccount.getCurrency());
             double amountInReceiverCurrency = commandInput.getAmount() * exchangeRate;
             receiverAccount.addFunds(amountInReceiverCurrency);
+
+            BusinessRules.recordSpending(senderAccount, commandInput.getEmail(),
+                    commandInput.getAmount(), commandInput.getTimestamp(), null);
 
             logTransaction(sender, senderAccount, successOutput("sent", senderAccount,
                     receiverAccount,

@@ -18,7 +18,10 @@ public final class DeleteCard extends CardBase {
     protected void processCardCommand(final User user) {
         Card card = user.getCardByNumber(commandInput.getCardNumber());
         if (card != null) {
-            Account account = user.getAccountByIban(card.getAssociatedIban());
+            Account account = user.getAccessibleAccountByIban(card.getAssociatedIban());
+            if (account.getBalance() != 0) {
+                return;
+            }
             account.removeCard(commandInput.getCardNumber());
 
             user.getTransactionsNode().add(toJson(user,

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.poo.e_banking.AppLogic;
 import org.poo.e_banking.commands.UpgradePlan;
+import org.poo.e_banking.helpers.BusinessRules;
 import org.poo.e_banking.helpers.Commission;
 import org.poo.e_banking.helpers.ExchangeRateManager;
 import org.poo.e_banking.helpers.Executable;
@@ -61,20 +62,28 @@ public final class PayOnline implements Executable {
             return;
         }
 
-        Account account = user.getAccountByIban(card.getAssociatedIban());
+        Account account = user.getAccessibleAccountByIban(card.getAssociatedIban());
         double exchangeRate = exchangeManager.getExchangeRate(commandInput.getCurrency(),
                 account.getCurrency());
         double amountInAccountCurrency = commandInput.getAmount() * exchangeRate;
         double exchangeToRON = exchangeManager.getExchangeRate(commandInput.getCurrency(), "RON");
         double amountInRON = commandInput.getAmount() * exchangeToRON;
-        double commission = Commission.getCommission(user, amountInRON);
+
+        if (!BusinessRules.canSpend(account, user.getEmail(), amountInAccountCurrency)) {
+            return;
+        }
+
+        User planUser = BusinessRules.planHolder(account, user);
+        double commission = Commission.getCommission(planUser, amountInRON);
 
         if (!account.payByCard(card, amountInAccountCurrency
                 + amountInAccountCurrency * commission)) {
             logTransactions(user, account,
                     PayOnlineOutputBuilder.insufficientFunds(commandInput.getTimestamp()));
         } else {
-            applyCashback(account, user, amountInAccountCurrency, exchangeManager);
+            applyCashback(account, planUser, amountInAccountCurrency, exchangeManager);
+            BusinessRules.recordSpending(account, user.getEmail(), amountInAccountCurrency,
+                    commandInput.getTimestamp(), commandInput.getCommerciant());
 
             logTransactions(user, account,
                     PayOnlineOutputBuilder.success(commandInput.getTimestamp(),
@@ -91,7 +100,7 @@ public final class PayOnline implements Executable {
             }
 
             UpgradePlan upgradePlan = new UpgradePlan(commandInput, output);
-            upgradePlan.freeUpgradeIfPossible(user, account);
+            upgradePlan.freeUpgradeIfPossible(planUser, account);
         }
     }
 

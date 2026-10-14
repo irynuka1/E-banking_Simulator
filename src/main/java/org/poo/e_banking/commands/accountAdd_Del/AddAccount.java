@@ -3,6 +3,7 @@ package org.poo.e_banking.commands.accountAdd_Del;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.poo.e_banking.AppLogic;
 import org.poo.entities.Account;
+import org.poo.entities.BusinessAccount;
 import org.poo.entities.Commerciant;
 import org.poo.entities.User;
 import org.poo.fileio.CommandInput;
@@ -25,15 +26,19 @@ public final class AddAccount extends AccountBase {
     @Override
     public void execute() {
         User user = getUserFromMap();
-        if (user == null || commandInput.getAccountType().equals("business")) {
+        if (user == null) {
             return;
         }
 
-        user.addAccount(commandInput.getAccountType(),
-                commandInput.getCurrency(),
-                commandInput.getInterestRate());
-
         AppLogic appLogic = AppLogic.getInstance();
+        if (commandInput.getAccountType().equals("business")) {
+            user.addAccount(new BusinessAccount(user.getEmail(), commandInput.getCurrency()));
+        } else {
+            user.addAccount(commandInput.getAccountType(),
+                    commandInput.getCurrency(),
+                    commandInput.getInterestRate());
+        }
+
         List<CommerciantInput> commerciants = appLogic.getCommerciants();
         Account account = user.getAccounts().getLast();
 

@@ -28,7 +28,7 @@ public final class CashWithdrawal implements Executable {
         ExchangeRateManager exchangeManager = appLogic.getExchangeRateManager();
 
         if (user == null) {
-            generateOutput("User not found", null);
+            generateOutput("User not found", "cashWithdrawal");
             return;
         }
 
@@ -48,7 +48,7 @@ public final class CashWithdrawal implements Executable {
 
     private void processWithdrawal(final User user, final Card card,
                                    final ExchangeRateManager exchangeManager) {
-        Account account = user.getAccountByIban(card.getAssociatedIban());
+        Account account = user.getAccessibleAccountByIban(card.getAssociatedIban());
 
         double exchangeToRON = exchangeManager.getExchangeRate(account.getCurrency(), "RON");
         double amountRON = account.getBalance() * exchangeToRON;

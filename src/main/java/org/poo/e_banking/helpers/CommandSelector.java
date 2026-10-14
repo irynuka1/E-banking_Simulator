@@ -7,6 +7,9 @@ import org.poo.e_banking.commands.SendMoney;
 import org.poo.e_banking.commands.SetMinBalance;
 import org.poo.e_banking.commands.accountAdd_Del.AddAccount;
 import org.poo.e_banking.commands.accountAdd_Del.DeleteAccount;
+import org.poo.e_banking.commands.business.AddBusinessAssociate;
+import org.poo.e_banking.commands.business.BusinessReport;
+import org.poo.e_banking.commands.business.ChangeLimit;
 import org.poo.e_banking.commands.cardAdd_Del.CreateCard;
 import org.poo.e_banking.commands.cardAdd_Del.DeleteCard;
 import org.poo.e_banking.commands.interestRate.AddInterestRate;
@@ -102,6 +105,18 @@ public final class CommandSelector {
                 break;
             case "upgradePlan":
                 command = new UpgradePlan(commandInput, output);
+                break;
+            case "addNewBusinessAssociate":
+                command = new AddBusinessAssociate(commandInput);
+                break;
+            case "changeSpendingLimit":
+                command = new ChangeLimit(commandInput, output, true);
+                break;
+            case "changeDepositLimit":
+                command = new ChangeLimit(commandInput, output, false);
+                break;
+            case "businessReport":
+                command = new BusinessReport(commandInput, output);
                 break;
             case "cashWithdrawal":
                 command = new CashWithdrawal(commandInput, output);

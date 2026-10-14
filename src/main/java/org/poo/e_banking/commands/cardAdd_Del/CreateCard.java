@@ -14,11 +14,11 @@ public final class CreateCard extends CardBase {
 
     @Override
     protected void processCardCommand(final User user) {
-        Account account = user.getAccountByIban(commandInput.getAccount());
+        Account account = user.getAccessibleAccountByIban(commandInput.getAccount());
         if (account == null) {
             return;
         }
-        user.addCardToAccount(commandInput.getAccount(), cardType);
+        account.addCard(cardType);
 
         user.getTransactionsNode().add(toJson(user,
                 "New card created",

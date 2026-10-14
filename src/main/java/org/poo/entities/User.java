@@ -28,6 +28,7 @@ public final class User implements ToOutput {
     private ObjectNode userNode;
     private ArrayNode transactionsNode;
     private Map<String, Account> accountMap = new HashMap<>();
+    private Map<String, Account> associatedAccounts = new HashMap<>();
     private List<PendingTransaction> pendingTransactions = new ArrayList<>();
 
     public User(final String firstName, final String lastName, final String email,
@@ -72,6 +73,35 @@ public final class User implements ToOutput {
             accounts.add(account);
             accountMap.put(account.getIban(), account);
         }
+    }
+
+    /**
+     * Adds an already created account to the user.
+     * @param account The account to add.
+     */
+    public void addAccount(final Account account) {
+        accounts.add(account);
+        accountMap.put(account.getIban(), account);
+    }
+
+    /**
+     * Gives this user access to an account owned by someone else (business associate).
+     * The account is not listed among the user's own accounts.
+     * @param account The business account.
+     */
+    public void addAssociatedAccount(final Account account) {
+        associatedAccounts.put(account.getIban(), account);
+    }
+
+    /**
+     * Gets an account the user can operate on: an owned one or a business account
+     * the user is associated with.
+     * @param iban The IBAN of the account.
+     * @return Returns the account if it exists, null otherwise.
+     */
+    public Account getAccessibleAccountByIban(final String iban) {
+        Account account = accountMap.get(iban);
+        return account != null ? account : associatedAccounts.get(iban);
     }
 
     /**
@@ -149,6 +179,11 @@ public final class User implements ToOutput {
      */
     public Card getCardByNumber(final String cardNumber) {
         for (Account account : accounts) {
+            if (account.getCardMap().containsKey(cardNumber)) {
+                return account.getCardMap().get(cardNumber);
+            }
+        }
+        for (Account account : associatedAccounts.values()) {
             if (account.getCardMap().containsKey(cardNumber)) {
                 return account.getCardMap().get(cardNumber);
             }

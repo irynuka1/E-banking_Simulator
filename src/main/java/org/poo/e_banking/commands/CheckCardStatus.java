@@ -32,7 +32,7 @@ public final class CheckCardStatus implements Executable {
         }
 
         Card card = user.getCardByNumber(commandInput.getCardNumber());
-        Account account = user.getAccountByIban(card.getAssociatedIban());
+        Account account = user.getAccessibleAccountByIban(card.getAssociatedIban());
         String previousStatus = card.getStatus();
         card.updateStatus(account.getBalance(), account.getMinBalance());
 
